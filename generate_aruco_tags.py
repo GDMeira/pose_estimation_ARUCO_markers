@@ -24,16 +24,17 @@ if ARUCO_DICT.get(args["type"], None) is None:
 	print(f"ArUCo tag type '{args['type']}' is not supported")
 	sys.exit(0)
 
-arucoDict = cv2.aruco.Dictionary_get(ARUCO_DICT[args["type"]])
+arucoDict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT[args["type"]])
 
 print("Generating ArUCo tag of type '{}' with ID '{}'".format(args["type"], args["id"]))
 tag_size = args["size"]
 tag = np.zeros((tag_size, tag_size, 1), dtype="uint8")
-cv2.aruco.drawMarker(arucoDict, args["id"], tag_size, tag, 1)
+cv2.aruco.generateImageMarker(arucoDict, args["id"], tag_size, tag, 1)
 
 # Save the tag generated
-tag_name = f'{args["output"]}/{args["type"]}_id_{args["id"]}.png'
-cv2.imwrite(tag_name, tag)
+tag_name = f'{args["output"]}_{args["type"]}_id_{args["id"]}.png'
+if not cv2.imwrite(tag_name, tag):
+	raise Exception("Could not write the image")
 cv2.imshow("ArUCo Tag", tag)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
