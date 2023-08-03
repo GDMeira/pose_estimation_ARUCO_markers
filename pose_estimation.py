@@ -2,7 +2,6 @@
 Sample Usage:-
 python pose_estimation.py --K_Matrix calibration_matrix.npy --D_Coeff distortion_coefficients.npy --type DICT_5X5_100
 '''
-#TODO: ajustar fitSin para pegar só os últimos pontos de positions e ir atualizando o gráfico
 
 import numpy as np
 import cv2
@@ -15,20 +14,29 @@ import matplotlib.pyplot as plt
 
 positions = []
 
-def fitSin(px, py, ax, linex, liney, linez):
-    if (len(positions) < 100):
+def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
+    lengthOfInterval = 300
+
+    if (len(positions) < lengthOfInterval):
         return px, py
     
     # Função senoidal
     def senoide(x, amplitude, frequencia, fase):
         return amplitude * np.sin(2 * np.pi * frequencia * x + fase)
+    
+    def moving_average(data, window_size):
+        window = np.ones(int(window_size)) / float(window_size)
+        return np.convolve(data, window, 'same')
 
     # Separação das coordenadas x, y e t
     arrayData = np.array(positions)
-    x = arrayData[-100:,0]
-    y = arrayData[-100:,1]
-    z = arrayData[-100:,2]
-    t = arrayData[-100:,3]
+    x = arrayData[-lengthOfInterval:,0]
+    y = arrayData[-lengthOfInterval:,1]
+    z = arrayData[-lengthOfInterval:,2]
+    t = arrayData[-lengthOfInterval:,3]
+
+    x = x - np.mean(arrayData[:,0])
+    y = y - np.mean(arrayData[:,1])
 
     # Ajuste da senoide para a variação em x
     parametros_x, _ = curve_fit(senoide, t, x, p0=px, maxfev=1000)
@@ -40,22 +48,33 @@ def fitSin(px, py, ax, linex, liney, linez):
 
     p0x = parametros_x
     p0y = parametros_y
+    x_fit = senoide(t, *parametros_x)
+    y_fit = senoide(t, *parametros_y)
 
     # Atualizar o gráfico
     linex.set_data(t, x)
-    linex.set_label(f'X f {frequencia_x:,.2f}, fase {fase_x:,.2f}')
+    linex.set_label(f'Hor período {1/frequencia_x:,.2f}s, fase {fase_x*180/np.pi:,.0f} degrees')
     liney.set_data(t, y)
-    liney.set_label(f'Y f {frequencia_y:,.2f}, fase {fase_y:,.2f}')
+    liney.set_label(f'Vert período {1/frequencia_y:,.2f}s, fase {fase_y*180/np.pi:,.0f} degrees')
     linez.set_data(t, z)
+    Ax = 22
+    Ay = 9
+    histereses = 4*np.sin((fase_x - fase_y) / 2)*Ax*Ay / np.sqrt(Ax**2 + Ay**2)
+    linez.set_label(f'Profundidade. Histerese: {histereses:,.1f} mm')
+    linex_fit.set_data(t, x_fit)
+    linex_fit.set_label('x adjust')
+    liney_fit.set_data(t, y_fit)
+    liney_fit.set_label('y adjust')
 
     ax[0].relim()  # Recalcular os limites dos eixos
     ax[0].autoscale_view()  # Redimensionar o gráfico
-    ax[0].legend()
+    ax[0].legend(loc='upper right')
     ax[1].relim()  # Recalcular os limites dos eixos
     ax[1].autoscale_view()  # Redimensionar o gráfico
-    ax[1].legend()
+    ax[1].legend(loc='upper right')
     ax[2].relim()  # Recalcular os limites dos eixos
     ax[2].autoscale_view()  # Redimensionar o gráfico
+    ax[2].legend(loc='upper right')
     plt.draw()
     plt.pause(0.001)
 
@@ -89,7 +108,18 @@ def pose_esitmation(frame, aruco_dict_type, matrix_coefficients, distortion_coef
                                                                        distortion_coefficients)
             pos = tvec[0][0][:] #posições x, y e z do qrcode [x hor, y vert e z profund]
             t = time.perf_counter() - start
-            pos = np.append(pos * 100, t) #tempo da medição
+            pos = np.append(pos * 100, t) # tempo da medição
+            n = 6 # length of moving average window
+            if len(positions) > n - 1:
+                sum1 = 0
+                sum2 = 0
+
+                for i in range(n - 1):
+                    sum1 += positions[-1-i][0]
+                    sum2 += positions[-1-i][1]
+
+                pos[0] = (pos[0] + sum1) / 6
+                pos[1] = (pos[1] + sum2) / 6  
             positions.append(pos)
             # Draw a square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners) 
@@ -120,17 +150,24 @@ if __name__ == '__main__':
     time.sleep(2.0)
     start = time.perf_counter()
 
-    p0x = [1,1,0]
-    p0y = [1,1,0]
+    p0x = [0.1,0.2,0]
+    p0y = [0.1,0.2,0]
 
     # Configurações do gráfico
     plt.ion()  # Ativa o modo de plotagem interativo
 
     # Criar a figura e o objeto de plotagem
     fig1, ax = plt.subplots(nrows=1, ncols=3)
+    fig1.set_figwidth(12)
+    fig1.set_figheight(5)
     linex, = ax[0].plot(0, 0)
+    linex_fit, = ax[0].plot(0, 0, linestyle='--', color='orange')
     liney, = ax[1].plot(0, 0)
+    liney_fit, = ax[1].plot(0, 0, linestyle='--', color='green')
     linez, = ax[2].plot(0, 0)
+    ax[0].legend(loc='upper right')
+    ax[1].legend(loc='upper right')
+    ax[2].legend(loc='upper right')
 
     while True:
         ret, frame = video.read()
@@ -140,7 +177,10 @@ if __name__ == '__main__':
         
         output = pose_esitmation(frame, aruco_dict_type, k, d)
 
-        p0x, p0y = fitSin(p0x, p0y, ax, linex, liney, linez)
+        p0x, p0y = fitSin(p0x, p0y, ax, linex, liney, linez, linex_fit, liney_fit)
+
+        if p0x[1] < 0.1: p0x[1] = 0.1
+        if p0y[1] < 0.1: p0y[1] = 0.1
 
         cv2.imshow('Estimated Pose', output)
 
