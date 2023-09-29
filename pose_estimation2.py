@@ -1,6 +1,6 @@
 '''
 Sample Usage:-
-python pose_estimation.py --K_Matrix calibration_matrix.npy --D_Coeff distortion_coefficients.npy --type DICT_5X5_100
+python pose_estimation2.py --K_Matrix calibration_matrix.npy --D_Coeff distortion_coefficients.npy --type DICT_5X5_100
 '''
 
 import numpy as np
@@ -22,8 +22,11 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
         return px, py
     
     # Função senoidal
-    def senoide(x, amplitude, frequencia, fase):
-        return amplitude * np.sin(2 * np.pi * frequencia * x + fase)
+    # def senoide(x, amplitude, frequencia, fase):
+    #     return amplitude * np.sin(2 * np.pi * frequencia * x + fase)
+    
+    def senoide2(x, s0, S, tau, phi):
+        return s0 - S * np.cos(np.pi * x / tau - phi)**2
     
     def moving_average(data, window_size):
         window = np.ones(int(window_size)) / float(window_size)
@@ -36,33 +39,33 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
     z = arrayData[-lengthOfInterval:,2]
     t = arrayData[-lengthOfInterval:,3]
 
-    x = x - np.mean(arrayData[:,0])
-    y = y - np.mean(arrayData[:,1])
+    x = x - np.min(arrayData[-lengthOfInterval:,0])
+    y = y - np.min(arrayData[-lengthOfInterval:,1])
 
-    bounds = ([0.08, 0, -np.pi], [0.5, 0.4, np.pi])
+    bounds = ([0.08, 0.08, 2, -np.pi], [0.7, 0.7, 6, np.pi])
 
     # Ajuste da senoide para a variação em x
-    parametros_x, _ = curve_fit(senoide, t, x, p0=px, bounds=bounds, maxfev=5000)
-    amplitude_x, frequencia_x, fase_x = parametros_x
+    parametros_x, _ = curve_fit(senoide2, t, x, p0=px, bounds=bounds, maxfev=5000)
+    s0_x, S_x, tau_x, phi_x = parametros_x
 
     # Ajuste da senoide para a variação em y
-    parametros_y, _ = curve_fit(senoide, t, y, p0=py, bounds=bounds, maxfev=5000)
-    amplitude_y, frequencia_y, fase_y = parametros_y
+    parametros_y, _ = curve_fit(senoide2, t, y, p0=py, bounds=bounds, maxfev=5000)
+    s0_y, S_y, tau_y, phi_y = parametros_y
 
     p0x = parametros_x
     p0y = parametros_y
-    x_fit = senoide(t, *parametros_x)
-    y_fit = senoide(t, *parametros_y)
+    x_fit = senoide2(t, *parametros_x)
+    y_fit = senoide2(t, *parametros_y)
 
     # Atualizar o gráfico
     linex.set_data(t, x)
-    linex.set_label(f'Hor período {1/frequencia_x:,.2f}s, fase {fase_x*180/np.pi:,.0f} degrees')
+    linex.set_label(f'Hor período {tau_x:,.2f}s, fase {phi_x*180/np.pi:,.0f} degrees')
     liney.set_data(t, y)
-    liney.set_label(f'Vert período {1/frequencia_y:,.2f}s, fase {fase_y*180/np.pi:,.0f} degrees')
+    liney.set_label(f'Vert período {tau_y:,.2f}s, fase {phi_y*180/np.pi:,.0f} degrees')
     linez.set_data(x, y)
     Ax = 22
     Ay = 9
-    histereses = 4*np.sin((fase_x - fase_y) / 2)*Ax*Ay / np.sqrt(Ax**2 + Ay**2)
+    histereses = 4*np.sin((phi_x - phi_y) / 2)*Ax*Ay / np.sqrt(Ax**2 + Ay**2)
     linez.set_label(f'Profundidade. Histerese: {histereses:,.1f} mm')
     linex_fit.set_data(t, x_fit)
     linex_fit.set_label('x adjust')
@@ -153,8 +156,8 @@ if __name__ == '__main__':
     time.sleep(2.0)
     start = time.perf_counter()
 
-    p0x = [0.2,0.2,0]
-    p0y = [0.1,0.2,0]
+    p0x = [0.2, 0.2, 4, 0]
+    p0y = [0.1, 0.1, 4, 0]
 
     # Configurações do gráfico
     plt.ion()  # Ativa o modo de plotagem interativo
