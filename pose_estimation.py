@@ -31,13 +31,20 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
 
     # Separação das coordenadas x, y e t
     arrayData = np.array(positions)
-    x = arrayData[-lengthOfInterval:,0]
-    y = arrayData[-lengthOfInterval:,1]
-    z = arrayData[-lengthOfInterval:,2]
-    t = arrayData[-lengthOfInterval:,3]
+    x = arrayData[-lengthOfInterval:,0].copy()
+    y = arrayData[-lengthOfInterval:,1].copy()
+    z = arrayData[-lengthOfInterval:,2].copy()
+    t = arrayData[-lengthOfInterval:,3].copy()
 
-    x = x - np.mean(arrayData[:,0])
-    y = y - np.mean(arrayData[:,1])
+    x = x - np.mean(arrayData[-lengthOfInterval:,0])
+    y = y - np.mean(arrayData[-lengthOfInterval:,1])
+
+    n = 10 # length of moving average window
+    x = moving_average(x, n)
+    x = x[n:-n]
+    y = moving_average(y, n)
+    y = y[n:-n]
+    t = t[n:-n]
 
     bounds = ([0.08, 0, -np.pi], [0.5, 0.4, np.pi])
 
@@ -112,17 +119,17 @@ def pose_esitmation(frame, aruco_dict_type, matrix_coefficients, distortion_coef
             pos = tvec[0][0][:] #posições x, y e z do qrcode [x hor, y vert e z profund]
             t = time.perf_counter() - start
             pos = np.append(pos * 100, t) # tempo da medição
-            n = 6 # length of moving average window
-            if len(positions) > n - 1:
-                sum1 = 0
-                sum2 = 0
+            # n = 6 # length of moving average window
+            # if len(positions) > n - 1:
+            #     sum1 = 0
+            #     sum2 = 0
 
-                for i in range(n - 1):
-                    sum1 = sum1 + positions[-1-i][0]
-                    sum2 = sum2 + positions[-1-i][1]
+            #     for i in range(n - 1):
+            #         sum1 = sum1 + positions[-1-i][0]
+            #         sum2 = sum2 + positions[-1-i][1]
 
-                pos[0] = (pos[0] + sum1) / 6
-                pos[1] = (pos[1] + sum2) / 6  
+            #     pos[0] = (pos[0] + sum1) / 6
+            #     pos[1] = (pos[1] + sum2) / 6  
             positions.append(pos)
             # Draw a square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners) 
