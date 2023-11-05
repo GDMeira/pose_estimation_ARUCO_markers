@@ -18,8 +18,8 @@ t_x = deque([0] * 30, maxlen=30)
 t_y = deque([0] * 30, maxlen=30)
 
 def fft_signal(ax, linex, liney, linez):
-    # lengthOfInterval = 100
-    lengthOfInterval = 300
+    lengthOfInterval = 200
+    # lengthOfInterval = 300
 
     if (len(positions) < lengthOfInterval):
         return 
@@ -52,16 +52,20 @@ def fft_signal(ax, linex, liney, linez):
     # t = t[n:-n]
 
     # FFT
-    fft_result_x = np.fft.fft(x)
-    fft_result_y = np.fft.fft(y)
     N = len(t)  # Número de pontos
     dt = t[1] - t[0]  # Intervalo de tempo entre amostras
-    frequencies = np.fft.fftfreq(N, dt)
+    time_diff = t[1:] - t[:-1]
+
+    # Calcule a média dos intervalos de tempo
+    mean_dt = np.mean(time_diff)
+    frequencies = np.fft.fftfreq(N, mean_dt)
     positive_frequencies_mask = frequencies > 0
 
+    fft_result_x = np.fft.fft(x).copy()
     peak_frequency_x = np.abs(frequencies[np.argmax(np.abs(fft_result_x))])
-    print(peak_frequency_x)
     if (peak_frequency_x > 0): t_x.append(1 / peak_frequency_x)
+
+    fft_result_y = np.fft.fft(y).copy()
     peak_frequency_y = np.abs(frequencies[np.argmax(np.abs(fft_result_y))])
     if (peak_frequency_y > 0): t_y.append(1 / peak_frequency_y)
 
@@ -123,7 +127,7 @@ def pose_esitmation(frame, aruco_dict_type, matrix_coefficients, distortion_coef
             cv2.aruco.refineDetectedMarkers
             pos = tvec[0][0][:] #posições x, y e z do qrcode [x hor, y vert e z profund]
             t = time.perf_counter() - start
-            pos = np.append(pos, t) # tempo da medição
+            pos = np.append(pos * 1000, t) # tempo da medição
 
             positions.append(pos)
             # Draw a square around the markers

@@ -11,11 +11,14 @@ import argparse
 import time
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+from collections import deque
 
 positions = []
+t_x = []
+t_y = []
 
 def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
-    lengthOfInterval = 100
+    lengthOfInterval = 150
     # lengthOfInterval = 300
 
     if (len(positions) < lengthOfInterval):
@@ -39,14 +42,14 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
     x = x - np.mean(arrayData[:,0])
     y = y - np.mean(arrayData[:,1])
 
-    n = 10 # length of moving average window
-    x = moving_average(x, n)
-    x = x[n:-n]
-    y = moving_average(y, n)
-    y = y[n:-n]
-    t = t[n:-n]
+    # n = 10 # length of moving average window
+    # x = moving_average(x, n)
+    # x = x[n:-n]
+    # y = moving_average(y, n)
+    # y = y[n:-n]
+    # t = t[n:-n]
 
-    bounds = ([0.08, 0, -np.pi], [0.5, 0.4, np.pi])
+    bounds = ([0.08, 0, -5*np.pi], [0.5, 0.4, 5*np.pi])
 
     # Ajuste da senoide para a variação em x
     parametros_x, _ = curve_fit(senoide, t, x, p0=px, bounds=bounds, maxfev=5000)
@@ -56,6 +59,10 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
     parametros_y, _ = curve_fit(senoide, t, y, p0=py, bounds=bounds, maxfev=5000)
     amplitude_y, frequencia_y, fase_y = parametros_y
 
+    t_x.append(1/frequencia_x)
+    t_y.append(1/frequencia_y)
+    interval = 30
+
     p0x = parametros_x
     p0y = parametros_y
     x_fit = senoide(t, *parametros_x)
@@ -63,9 +70,9 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
 
     # Atualizar o gráfico
     linex.set_data(t, x)
-    linex.set_label(f'Hor período {1/frequencia_x:,.2f}s, fase {fase_x*180/np.pi:,.0f} degrees')
+    linex.set_label(f'Hor período {1/frequencia_x:,.2f}s, fase {fase_x*180/np.pi:,.0f} degrees \n mean: {np.mean(t_x[-interval:]):.1f} s, std: {np.std(t_x[-interval:]):.1f} s')
     liney.set_data(t, y)
-    liney.set_label(f'Vert período {1/frequencia_y:,.2f}s, fase {fase_y*180/np.pi:,.0f} degrees')
+    liney.set_label(f'Vert período {1/frequencia_y:,.2f}s, fase {fase_y*180/np.pi:,.0f} degrees \n mean: {np.mean(t_y[-interval:]):.1f} s, std: {np.std(t_y[-interval:]):.1f} s')
     linez.set_data(arrayData[-lengthOfInterval:,0], arrayData[-lengthOfInterval:,1])
     Ax = 22
     Ay = 9
