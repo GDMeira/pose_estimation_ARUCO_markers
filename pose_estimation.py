@@ -36,8 +36,8 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
     z = arrayData[-lengthOfInterval:,2].copy()
     t = arrayData[-lengthOfInterval:,3].copy()
 
-    x = x - np.mean(arrayData[-lengthOfInterval:,0])
-    y = y - np.mean(arrayData[-lengthOfInterval:,1])
+    x = x - np.mean(arrayData[:,0])
+    y = y - np.mean(arrayData[:,1])
 
     n = 10 # length of moving average window
     x = moving_average(x, n)
@@ -66,7 +66,7 @@ def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
     linex.set_label(f'Hor período {1/frequencia_x:,.2f}s, fase {fase_x*180/np.pi:,.0f} degrees')
     liney.set_data(t, y)
     liney.set_label(f'Vert período {1/frequencia_y:,.2f}s, fase {fase_y*180/np.pi:,.0f} degrees')
-    linez.set_data(x, y)
+    linez.set_data(arrayData[-lengthOfInterval:,0], arrayData[-lengthOfInterval:,1])
     Ax = 22
     Ay = 9
     histereses = 4*np.sin((fase_x - fase_y) / 2)*Ax*Ay / np.sqrt(Ax**2 + Ay**2)
