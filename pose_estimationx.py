@@ -16,10 +16,10 @@ positions = []
 t_x = []
 t_y = []
 
-def fft_signal(ax, linex, liney, linez):
-    n = 4 # length of moving average window
-    # lengthOfInterval = 128
-    lengthOfInterval = 256
+def fft_signal():
+    n = 6 # length of moving average window
+    lengthOfInterval = 4096
+    # lengthOfInterval = 256
 
     if (n > 1):
         lengthOfInterval = lengthOfInterval + 2 * n - 1
@@ -28,6 +28,8 @@ def fft_signal(ax, linex, liney, linez):
         return 
     
     def moving_average(data, window_size):
+        if (window_size == 1): return data
+
         window = np.ones(int(window_size)) / float(window_size)
         return np.convolve(data, window, 'same')
     
@@ -57,63 +59,41 @@ def fft_signal(ax, linex, liney, linez):
 
     x = moving_average(x, n)
     x = x[n:-n]
-    X = np.array([0] * 1024)
-    for i in range(0, len(x)): 
-        X[i] = x[i]
-
     y = moving_average(y, n)
     y = y[n:-n]
-    Y = np.array([0] * 1024)
-    for i in range(0, len(y)): 
-        Y[i] = y[i]
-
     t = t[n:-n]
 
     # FFT
-    N = len(X)  # Número de pontos
+    N = len(t)  # Número de pontos
+
     mean_dt = 0
     for i in range(1, len(t)):
         mean_dt += t[i] - t[i - 1]
 
     mean_dt /= len(t)
 
+    # mean_dt = t[1] - t[0]
+
     frequencies = np.fft.fftfreq(N, mean_dt)
+    # print(frequencies)
     positive_frequencies_mask = frequencies > 0
 
-    fft_result_x = dft(X)
+    fft_result_x = dft(x)
+    # fft_result_x = np.fft.fft(x)
     peak_frequency_x = np.abs(frequencies[np.argmax(np.abs(fft_result_x))])
     if (peak_frequency_x > 0): t_x.append([1 / peak_frequency_x])
 
-    fft_result_y = dft(Y)
-    peak_frequency_y = np.abs(frequencies[np.argmax(np.abs(fft_result_y))])
-    if (peak_frequency_y > 0): t_y.append([1 / peak_frequency_y])
+    # fft_result_y = np.fft.fft(y)
+    # peak_frequency_y = np.abs(frequencies[np.argmax(np.abs(fft_result_y))])
+    # if (peak_frequency_y > 0): t_y.append([1 / peak_frequency_y])
 
     tx = np.array(t_x)
     ty = np.array(t_y)
 
     # Atualizar o gráfico
     interval = 30
-    linex.set_data(frequencies[positive_frequencies_mask], np.abs(fft_result_x[positive_frequencies_mask]))
-    linex.set_label(f'Pico horizontal em {peak_frequency_x:.2f} Hz \n mean: {np.mean(tx[-interval:]):.1f} s, std: {np.std(tx[-interval:]):.1f} s')
-    liney.set_data(frequencies[positive_frequencies_mask], np.abs(fft_result_y[positive_frequencies_mask]))
-    liney.set_label(f'Pico vertical em {peak_frequency_y:.2f} Hz \n mean: {np.mean(ty[-interval:]):.1f} s, std: {np.std(ty[-interval:]):.1f} s')
-    # linez.set_data(arrayData[-lengthOfInterval:,0], arrayData[-lengthOfInterval:,1])
-    linez.set_data(t, x)
-    Ax = 22
-    Ay = 9
-    linez.set_label(f'Profundidade.')
-
-    ax[0].relim()  # Recalcular os limites dos eixos
-    ax[0].autoscale_view()  # Redimensionar o gráfico
-    ax[0].legend(loc='upper right')
-    ax[1].relim()  # Recalcular os limites dos eixos
-    ax[1].autoscale_view()  # Redimensionar o gráfico
-    ax[1].legend(loc='upper right')
-    ax[2].relim()  # Recalcular os limites dos eixos
-    ax[2].autoscale_view()  # Redimensionar o gráfico
-    ax[2].legend(loc='upper right')
-    plt.draw()
-    plt.pause(0.001)
+    # print(f'Pico horizontal em {peak_frequency_x:.2f} Hz \n mean: {np.mean(tx[-interval:]):.1f} s, std: {np.std(tx[-interval:]):.1f} s \r')
+    print(f'Pico horizontal em {peak_frequency_x:.2f} Hz')
 
     return 
 
@@ -183,20 +163,6 @@ if __name__ == '__main__':
     time.sleep(2.0)
     start = time.perf_counter()
 
-    # Configurações do gráfico
-    plt.ion()  # Ativa o modo de plotagem interativo
-
-    # Criar a figura e o objeto de plotagem
-    fig1, ax = plt.subplots(nrows=1, ncols=3)
-    fig1.set_figwidth(12)
-    fig1.set_figheight(5)
-    linex, = ax[0].plot(0, 0)
-    liney, = ax[1].plot(0, 0)
-    linez, = ax[2].plot(0, 0)
-    ax[0].legend(loc='upper right')
-    ax[1].legend(loc='upper right')
-    ax[2].legend(loc='upper right')
-
     while True:
         ret, frame = video.read()
 
@@ -205,9 +171,9 @@ if __name__ == '__main__':
         
         output = pose_esitmation(frame, aruco_dict_type, k, d)
 
-        fft_signal(ax, linex, liney, linez)
+        fft_signal()
 
-        cv2.imshow('Estimated Pose', output)
+        # cv2.imshow('Estimated Pose', output)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
