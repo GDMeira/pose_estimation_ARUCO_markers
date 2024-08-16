@@ -18,8 +18,8 @@ t_x = []
 t_y = []
 
 def fitSin(px, py, ax, linex, liney, linez, linex_fit, liney_fit):
-    lengthOfInterval = 150
-    # lengthOfInterval = 300
+    # lengthOfInterval = 150
+    lengthOfInterval = 300
 
     if (len(positions) < lengthOfInterval):
         return px, py

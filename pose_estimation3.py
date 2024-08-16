@@ -18,8 +18,8 @@ t_y = []
 
 def fft_signal(ax, linex, liney, linez):
     n = 4 # length of moving average window
-    # lengthOfInterval = 128
-    lengthOfInterval = 256
+    lengthOfInterval = 500
+    # lengthOfInterval = 256
 
     if (n > 1):
         lengthOfInterval = lengthOfInterval + 2 * n - 1
@@ -28,6 +28,7 @@ def fft_signal(ax, linex, liney, linez):
         return 
     
     def moving_average(data, window_size):
+        if window_size == 1: return data
         window = np.ones(int(window_size)) / float(window_size)
         return np.convolve(data, window, 'same')
     
@@ -54,18 +55,18 @@ def fft_signal(ax, linex, liney, linez):
 
     x = x - np.mean(arrayData[:,0])
     y = y - np.mean(arrayData[:,1])
+    length_fft = 8192
 
     x = moving_average(x, n)
     x = x[n:-n]
-    X = np.array([0] * 1024)
-    for i in range(0, len(x)): 
-        X[i] = x[i]
+    X = np.array([0] * length_fft)
 
     y = moving_average(y, n)
     y = y[n:-n]
-    Y = np.array([0] * 1024)
+    Y = np.array([0] * length_fft)
     for i in range(0, len(y)): 
         Y[i] = y[i]
+        X[i] = x[i]
 
     t = t[n:-n]
 
@@ -80,11 +81,11 @@ def fft_signal(ax, linex, liney, linez):
     frequencies = np.fft.fftfreq(N, mean_dt)
     positive_frequencies_mask = frequencies > 0
 
-    fft_result_x = dft(X)
+    fft_result_x = np.fft.fft(X)
     peak_frequency_x = np.abs(frequencies[np.argmax(np.abs(fft_result_x))])
     if (peak_frequency_x > 0): t_x.append([1 / peak_frequency_x])
 
-    fft_result_y = dft(Y)
+    fft_result_y = np.fft.fft(Y)
     peak_frequency_y = np.abs(frequencies[np.argmax(np.abs(fft_result_y))])
     if (peak_frequency_y > 0): t_y.append([1 / peak_frequency_y])
 
@@ -94,11 +95,11 @@ def fft_signal(ax, linex, liney, linez):
     # Atualizar o gráfico
     interval = 30
     linex.set_data(frequencies[positive_frequencies_mask], np.abs(fft_result_x[positive_frequencies_mask]))
-    linex.set_label(f'Pico horizontal em {peak_frequency_x:.2f} Hz \n mean: {np.mean(tx[-interval:]):.1f} s, std: {np.std(tx[-interval:]):.1f} s')
+    linex.set_label(f'Pico horizontal em {peak_frequency_x:.3f} Hz \n mean: {np.mean(tx[-interval:]):.2f} s, std: {np.std(tx[-interval:]):.1f} s')
     liney.set_data(frequencies[positive_frequencies_mask], np.abs(fft_result_y[positive_frequencies_mask]))
-    liney.set_label(f'Pico vertical em {peak_frequency_y:.2f} Hz \n mean: {np.mean(ty[-interval:]):.1f} s, std: {np.std(ty[-interval:]):.1f} s')
+    liney.set_label(f'Pico vertical em {peak_frequency_y:.3f} Hz \n mean: {np.mean(ty[-interval:]):.2f} s, std: {np.std(ty[-interval:]):.1f} s')
     # linez.set_data(arrayData[-lengthOfInterval:,0], arrayData[-lengthOfInterval:,1])
-    linez.set_data(t, x)
+    linez.set_data(x, y)
     Ax = 22
     Ay = 9
     linez.set_label(f'Profundidade.')
@@ -150,10 +151,18 @@ def pose_esitmation(frame, aruco_dict_type, matrix_coefficients, distortion_coef
                                                                        distortion_coefficients)
             cv2.aruco.refineDetectedMarkers
             pos = tvec[0][0][:] #posições x, y e z do qrcode [x hor, y vert e z profund]
+            if len(positions) > 75:
+                pos_array = np.array(positions)
+                x_max = np.max(pos_array[:, 0])
+                x_min = np.min(pos_array[:, 0])
+
+                if pos[0] > x_max * 1.2 and pos[0] < x_min * 1.2:
+                  return frame
+
             t = time.perf_counter() - start
             pos = np.append(pos * 1000, t) # tempo da medição
-
             positions.append(pos)
+            
             # Draw a square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners) 
 

@@ -1,6 +1,6 @@
 '''
 Sample Usage:-
-python pose_estimation3.py --K_Matrix calibration_matrix.npy --D_Coeff distortion_coefficients.npy --type DICT_5X5_100
+python pose_estimation.py --K_Matrix calibration_matrix.npy --D_Coeff distortion_coefficients.npy --type DICT_5X5_100
 '''
 
 import numpy as np
@@ -16,30 +16,20 @@ positions = []
 t_x = []
 t_y = []
 
-def fft_signal():
-    n = 6 # length of moving average window
-    lengthOfInterval = 4096
-    # lengthOfInterval = 256
-
-    if (n > 1):
-        lengthOfInterval = lengthOfInterval + 2 * n - 1
+def fitSin(py, ax, linex, liney, linez, linex_fit, liney_fit):
+    # lengthOfInterval = 150
+    lengthOfInterval = 500
 
     if (len(positions) < lengthOfInterval):
-        return 
+        return py
+    
+    # Função senoidal
+    def senoide(x, amplitude, frequencia, fase):
+        return amplitude * np.sin(2 * np.pi * frequencia * x + fase)
     
     def moving_average(data, window_size):
-        if (window_size == 1): return data
-
         window = np.ones(int(window_size)) / float(window_size)
         return np.convolve(data, window, 'same')
-    
-    def dft(x):
-        x = np.asarray(x, dtype=float)
-        N = x.shape[0]
-        n = np.arange(N)
-        k = n.reshape((N,1))
-        M = np.exp(-2j * np.pi * k * n/N)
-        return np.dot(M,x)
 
     # Separação das coordenadas x, y e t
     arrayData = np.array(positions)
@@ -48,56 +38,76 @@ def fft_signal():
     z = arrayData[-lengthOfInterval:,2].copy()
     t = arrayData[-lengthOfInterval:,3].copy()
 
-    # arrayData = np.array(positions)
-    # x = arrayData[:,0].copy()
-    # y = arrayData[:,1].copy()
-    # z = arrayData[:,2].copy()
-    # t = arrayData[:,3].copy()
-
     x = x - np.mean(arrayData[:,0])
     y = y - np.mean(arrayData[:,1])
 
-    x = moving_average(x, n)
-    x = x[n:-n]
-    y = moving_average(y, n)
-    y = y[n:-n]
-    t = t[n:-n]
+    # n = 10 # length of moving average window
+    # x = moving_average(x, n)
+    # x = x[n:-n]
+    # y = moving_average(y, n)
+    # y = y[n:-n]
+    # t = t[n:-n]
 
-    # FFT
-    N = len(t)  # Número de pontos
+    bounds = ([0.08, 0.05, -5*np.pi], [5, 0.5, 5*np.pi])
 
+    length_fft = 8192
+    X = np.array([0] * length_fft)
+
+    for i in range(0, len(x)):
+        X[i] = x[i]
+
+    N = len(X)  # Número de pontos
     mean_dt = 0
     for i in range(1, len(t)):
         mean_dt += t[i] - t[i - 1]
 
     mean_dt /= len(t)
 
-    # mean_dt = t[1] - t[0]
-
     frequencies = np.fft.fftfreq(N, mean_dt)
-    # print(frequencies)
     positive_frequencies_mask = frequencies > 0
 
-    fft_result_x = dft(x)
-    # fft_result_x = np.fft.fft(x)
+    fft_result_x = np.fft.fft(X)
     peak_frequency_x = np.abs(frequencies[np.argmax(np.abs(fft_result_x))])
-    if (peak_frequency_x > 0): t_x.append([1 / peak_frequency_x])
+    if peak_frequency_x > 0: t_x.append(1/peak_frequency_x)
 
-    # fft_result_y = np.fft.fft(y)
-    # peak_frequency_y = np.abs(frequencies[np.argmax(np.abs(fft_result_y))])
-    # if (peak_frequency_y > 0): t_y.append([1 / peak_frequency_y])
+    # Ajuste da senoide para a variação em y
+    parametros_y, _ = curve_fit(senoide, t, y, p0=py, bounds=bounds, maxfev=5000)
+    amplitude_y, frequencia_y, fase_y = parametros_y
 
-    tx = np.array(t_x)
-    ty = np.array(t_y)
+    t_y.append(1/frequencia_y)
+    interval = 30
+
+    p0y = parametros_y
+    y_fit = senoide(t, *parametros_y)
 
     # Atualizar o gráfico
-    interval = 30
-    # print(f'Pico horizontal em {peak_frequency_x:.2f} Hz \n mean: {np.mean(tx[-interval:]):.1f} s, std: {np.std(tx[-interval:]):.1f} s \r')
-    print(f'Pico horizontal em {peak_frequency_x:.2f} Hz')
+    linex.set_data(frequencies[positive_frequencies_mask], np.abs(fft_result_x[positive_frequencies_mask]))
+    linex.set_label(f'Pico horizontal em {peak_frequency_x:.3f} Hz \n periodo: {np.mean(t_x[-interval:]):.1f} s')
 
-    return 
+    liney.set_data(t, y)
+    liney.set_label(f'Vert período {1/frequencia_y:,.2f}s, frequência {frequencia_y:,.3f} Hz \n mean: {np.mean(t_y[-interval:]):.1f} s, std: {np.std(t_y[-interval:]):.1f} s')
+    linez.set_data(arrayData[-lengthOfInterval:,0], arrayData[-lengthOfInterval:,1])
+    Ax = 22
+    Ay = 9
+    linez.set_label(f'Profundidade')
+    liney_fit.set_data(t, y_fit)
+    liney_fit.set_label('y adjust')
 
-def pose_esitmation(frame, aruco_dict_type, matrix_coefficients, distortion_coefficients, refine_markers=False):
+    ax[0].relim()  # Recalcular os limites dos eixos
+    ax[0].autoscale_view()  # Redimensionar o gráfico
+    ax[0].legend(loc='upper right')
+    ax[1].relim()  # Recalcular os limites dos eixos
+    ax[1].autoscale_view()  # Redimensionar o gráfico
+    ax[1].legend(loc='upper right')
+    ax[2].relim()  # Recalcular os limites dos eixos
+    ax[2].autoscale_view()  # Redimensionar o gráfico
+    ax[2].legend(loc='upper right')
+    plt.draw()
+    plt.pause(0.001)
+
+    return p0y
+
+def pose_esitmation(frame, aruco_dict_type, matrix_coefficients, distortion_coefficients):
 
     '''
     frame - Frame from the video stream
@@ -117,22 +127,23 @@ def pose_esitmation(frame, aruco_dict_type, matrix_coefficients, distortion_coef
 
     corners, ids, rejected_img_points = aruco_detector.detectMarkers(gray)
 
-    if refine_markers: #Board ?
-        corners, ids, rejected_img_points = cv2.aruco.refineDetectedMarkers(
-            gray, corners, ids, rejected_img_points, matrix_coefficients, distortion_coefficients
-        )
-
-    # If markers are detected
+        # If markers are detected
     if len(corners) > 0:
         for i in range(0, len(ids)):
             # Estimate pose of each marker and return the values rvec and tvec---(different from those of camera coefficients)
             rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(corners[i], 0.02, matrix_coefficients,
                                                                        distortion_coefficients)
-            cv2.aruco.refineDetectedMarkers
             pos = tvec[0][0][:] #posições x, y e z do qrcode [x hor, y vert e z profund]
             t = time.perf_counter() - start
             pos = np.append(pos * 1000, t) # tempo da medição
+            if len(positions) > 75:
+                pos_array = np.array(positions)
+                x_max = np.max(pos_array[:, 0])
+                x_min = np.min(pos_array[:, 0])
 
+                if pos[0] > x_max * 1.2 and pos[0] < x_min * 1.2:
+                  return frame
+                
             positions.append(pos)
             # Draw a square around the markers
             cv2.aruco.drawDetectedMarkers(frame, corners) 
@@ -163,6 +174,24 @@ if __name__ == '__main__':
     time.sleep(2.0)
     start = time.perf_counter()
 
+    p0y = [1, 0.2, 0]
+
+    # Configurações do gráfico
+    plt.ion()  # Ativa o modo de plotagem interativo
+
+    # Criar a figura e o objeto de plotagem
+    fig1, ax = plt.subplots(nrows=1, ncols=3)
+    fig1.set_figwidth(12)
+    fig1.set_figheight(5)
+    linex, = ax[0].plot(0, 0)
+    linex_fit, = ax[0].plot(0, 0, linestyle='--', color='orange')
+    liney, = ax[1].plot(0, 0)
+    liney_fit, = ax[1].plot(0, 0, linestyle='--', color='green')
+    linez, = ax[2].plot(0, 0)
+    ax[0].legend(loc='upper right')
+    ax[1].legend(loc='upper right')
+    ax[2].legend(loc='upper right')
+
     while True:
         ret, frame = video.read()
 
@@ -171,9 +200,9 @@ if __name__ == '__main__':
         
         output = pose_esitmation(frame, aruco_dict_type, k, d)
 
-        fft_signal()
+        p0y = fitSin(p0y, ax, linex, liney, linez, linex_fit, liney_fit)
 
-        # cv2.imshow('Estimated Pose', output)
+        cv2.imshow('Estimated Pose', output)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
